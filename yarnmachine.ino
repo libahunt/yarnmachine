@@ -14,24 +14,26 @@ D5, D6 = PD5, PD6
 D9, D10, D11 = PB1, PB2, PB3
 */
 
+unsigned long threadLostTime = 5000;
+
 /*system speed*/
 int speedState = 0;
-int prevSpeedState = 0;
+int prevSpeedState = 1;
 /*each motor own speed coefficent*/
-int motorSpeedCoefs = [20, 20, 20, 20, 20];
+int motorSpeedCoefs[5] = {20, 20, 20, 20, 20};
 
 /*tension sensors functionality*/
-int tensionProblem = [0,0,0,0,0];
-unsigned long tensionDebounceStart = [0,0,0,0,0];
+int tensionProblem[5] = {0,0,0,0,0};
+unsigned long tensionDebounceStart[5] = {0,0,0,0,0};
 
 /*helpers*/
 byte portMask = 0x01;
-int i;
+int i, j;
 
 /*input buttons as debounced library objecs*/
-DebouncedButton btSpeedUp = DebouncedButton(3,50);
-DebouncedButton btSpeedDown = DebouncedButton(3,50);
-DebouncedButton btStartStop = DebouncedButton(7,50);
+DebouncedButton btSpeedUp = DebouncedButton(8,300);
+DebouncedButton btSpeedDown = DebouncedButton(12,300);
+DebouncedButton btStartStop = DebouncedButton(7,300);
 
 
 void setup() {
@@ -39,7 +41,7 @@ void setup() {
   /*debug*/#ifdef DEBUG
     /*debug*/Serial.begin(9600);
   /*debug*/#endif
-  //DPL("setup");
+  DPL("setup");
   
   /*Pin modes*/
   DDRC = DDRC & ~0x1F;//tension sensors inputs
@@ -47,6 +49,13 @@ void setup() {
   DDRB = DDRB | 0xE;//motor outputs
   //button inputs are handeled in library objects
   
+  digitalWrite(5, 0);
+  digitalWrite(6, 0);
+  digitalWrite(9, 0);
+  digitalWrite(10, 0);
+  digitalWrite(11, 0);
+  
+  DPL("ports low");
   
 }
 
@@ -54,36 +63,44 @@ void loop() {
   
 /*Input buttons functionality*/
 
-  if(btStartStop.dbRead()) {
+  if(!btStartStop.dbRead()) {
     if (speedState>0) {
-      prevSpeedState ) speedState;
+      prevSpeedState = speedState;
       speedState = 0;
     }
     else {
       speedState = prevSpeedState;
     }
   }
-  else if(btSpeedDown.dbRead()) {
+  else if(!btSpeedDown.dbRead()) {
     if (speedState > 0) {
       speedState--;
       prevSpeedState = speedState;
     }
   }
-  else if(btSpeedUp.dbRead()) {
+  else if(!btSpeedUp.dbRead()) {
     if (speedState < 10) {
       speedState++;
       prevSpeedState = speedState;
     }
   }
+  if (prevSpeedState == 0) prevSpeedState = 1;
+  DPL(speedState);
   
 /*Tension sensors functionality*/
-  
-  motorSpeedCoefs = [20, 20, 20, 20, 20];
-  for (portMask = 0x01; portMask <= 0x1F; portMask << 1) {
+  for (i=0; i<5; i++) {
+    motorSpeedCoefs[i] = 20;
+  }
+  portMask = 0x01;
+  for (i=0; i<5; i++) {
     if (tensionProblem[i] == 1) {
       if (millis() - tensionDebounceStart[i] > threadLostTime) {
         speedState = 0;
-        prevSpeedState = 0;
+        prevSpeedState = 1;
+        for (j=0; j<5; j++) {
+          tensionProblem[j] = 0;
+        }
+        return;
       }
     }
     if ((PINC & portMask) == 0) {
@@ -94,16 +111,17 @@ void loop() {
     else {
       tensionProblem[i] = 0;
     }
-    i++;
+    portMask << 1;
   }
   
   
 /*Write pwm according to each motors own speed coefficent*/
-  analogWrite(5, speedState*motorSpeedCoefs[0]);
-  analogWrite(6, speedState*motorSpeedCoefs[1]);
+  analogWrite(11, speedState*motorSpeedCoefs[0]);
+  DPL(speedState*motorSpeedCoefs[0]);
+  analogWrite(10, speedState*motorSpeedCoefs[1]);
   analogWrite(9, speedState*motorSpeedCoefs[2]);
-  analogWrite(10, speedState*motorSpeedCoefs[3]);
-  analogWrite(11, speedState*motorSpeedCoefs[4]);
+  analogWrite(6, speedState*motorSpeedCoefs[3]);
+  analogWrite(5, speedState*motorSpeedCoefs[4]);
   
   
 }
